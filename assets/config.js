@@ -1,6 +1,6 @@
 window.CXC_CONFIG = {
   // Replace with your actual Apps Script Web App Deployment Executable URL
-  API_URL: "https://script.google.com/macros/s/YOUR_EXEC_ID_HERE/exec",
+  API_URL: "https://script.google.com/macros/s/AKfycbz0Teeo4dGLb3ef8usN34OPG2xo6aXRFxiKb2Pn9L0VmT8BLyeLE90c_3qy9iAGNtEw8A/exec",
   STORE_NAME: "CLOTH X CLUB",
   UPI_ID: "9050623210@sbi",
   PAYEE_NAME: "CLOTH X CLUB",
