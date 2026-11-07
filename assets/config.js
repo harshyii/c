@@ -1,6 +1,6 @@
-// CLOTH X CLUB public configuration. Replace API_URL after deploying Code.gs.
-window.CXC_CONFIG = Object.freeze({
-  API_URL: "https://script.google.com/macros/s/AKfycbz0Teeo4dGLb3ef8usN34OPG2xo6aXRFxiKb2Pn9L0VmT8BLyeLE90c_3qy9iAGNtEw8A/exec",
+window.CXC_CONFIG = {
+  // Replace with your actual Apps Script Web App Deployment Executable URL
+  API_URL: "https://script.google.com/macros/s/YOUR_EXEC_ID_HERE/exec",
   STORE_NAME: "CLOTH X CLUB",
   UPI_ID: "9050623210@sbi",
   PAYEE_NAME: "CLOTH X CLUB",
@@ -9,4 +9,4 @@ window.CXC_CONFIG = Object.freeze({
   POINTS_PER_100_RUPEES: 1,
   POINT_VALUE_RUPEES: 0.10,
   MIN_REDEEM_POINTS: 100
-});
+};

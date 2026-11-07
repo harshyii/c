@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CLOTH X CLUB - Checkout</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="assets/config.js"></script>
+</head>
+<body>
+  <div class="cxc-container">
+    <div class="cxc-header">
+      <div class="cxc-brand">CLOTH X CLUB</div>
+      <div class="cxc-tagline">FASHION • LIFESTYLE • EVERYDAY WEAR</div>
+    </div>
+
+    <!-- Amount Card -->
+    <div class="cxc-card">
+      <div style="text-align: center;">
+        <span id="payStatusBadge" class="cxc-status-badge badge-pending">PAYMENT PENDING</span>
+      </div>
+
+      <div class="cxc-amount-box">
+        <div class="cxc-amount-label">Payable Amount</div>
+        <div class="cxc-amount-val" id="payAmount">₹0.00</div>
+        <div class="cxc-ref" id="payRef">CXC-XXXXXX</div>
+      </div>
+
+      <a id="upiBtn" href="#" class="cxc-btn">OPEN UPI APP TO PAY</a>
+      <p style="font-size:11px; text-align:center; color:var(--cxc-gray-mid); margin-top:8px;">
+        Opens Google Pay, PhonePe, Paytm or default UPI app
+      </p>
+      
+      <button class="cxc-btn cxc-btn-secondary" onclick="checkStatusManual()">DONE / REFRESH STATUS</button>
+    </div>
+
+    <!-- Registration & Loyalty Card -->
+    <div class="cxc-card">
+      <div class="cxc-label" style="font-size: 14px; margin-bottom: 8px;">CLOTH X CLUB REWARDS</div>
+      <p style="font-size: 12px; color: var(--cxc-gray-dark); margin-bottom: 12px;">
+        Earn 1 Point per ₹100 spent. Register to save your reward points.
+      </p>
+
+      <div id="regForm">
+        <input type="text" id="regName" class="cxc-input" placeholder="Your Name">
+        <input type="tel" id="regMobile" class="cxc-input" placeholder="10-digit Mobile Number" maxlength="10">
+        
+        <label style="font-size: 11px; display: flex; align-items: center; gap: 6px; margin-bottom: 12px;">
+          <input type="checkbox" id="mktConsent" checked> Receive exclusive offers via WhatsApp/SMS
+        </label>
+
+        <button class="cxc-btn" onclick="registerCustomer()">Save Rewards Profile</button>
+      </div>
+
+      <div id="regSuccess" class="hidden" style="text-align:center; padding:10px 0;">
+        <p style="font-weight:700; color:var(--cxc-green); font-size:14px;">Rewards Profile Linked!</p>
+        <p style="font-size:12px; margin-top:4px;">Current Balance: <strong id="userPoints">0</strong> Points</p>
+      </div>
+    </div>
+
+    <!-- Community & Feedback -->
+    <div class="cxc-social-section">
+      <a id="reviewLink" href="#" target="_blank" class="cxc-social-card">
+        <strong>Leave a Google Review</strong>
+        <span style="font-size: 11px; color: var(--cxc-gray-mid);">Your honest feedback helps us improve</span>
+      </a>
+
+      <a id="instaLink" href="#" target="_blank" class="cxc-social-card">
+        <strong>Follow us on Instagram</strong>
+        <span style="font-size: 11px; color: var(--cxc-gray-mid);">@clothxclub • New arrivals & offers</span>
+      </a>
+    </div>
+  </div>
+
+  <script>
+    let billRef = '';
+    let currentBill = null;
+
+    window.onload = function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      billRef = urlParams.get('ref');
+
+      document.getElementById('reviewLink').href = window.CXC_CONFIG.GOOGLE_REVIEW_URL;
+      document.getElementById('instaLink').href = window.CXC_CONFIG.INSTAGRAM_URL;
+
+      if (billRef) {
+        fetchBillDetails();
+      } else {
+        document.getElementById('payRef').innerText = 'INVALID REFERENCE';
+      }
+    };
+
+    function fetchBillDetails() {
+      fetch(`${window.CXC_CONFIG.API_URL}?action=bill&ref=${billRef}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'success') {
+          currentBill = data.bill;
+          document.getElementById('payAmount').innerText = `₹${parseFloat(currentBill.netAmount).toFixed(2)}`;
+          document.getElementById('payRef').innerText = currentBill.ref;
+
+          if (currentBill.mobile) {
+            document.getElementById('regMobile').value = currentBill.mobile;
+          }
+
+          if (currentBill.payStatus === 'PAID') {
+            markUiPaid();
+          } else {
+            setupUpiLink(currentBill.netAmount, currentBill.ref);
+          }
+        }
+      });
+    }
+
+    function setupUpiLink(amount, ref) {
+      const params = new URLSearchParams({
+        pa: window.CXC_CONFIG.UPI_ID,
+        pn: window.CXC_CONFIG.PAYEE_NAME,
+        am: parseFloat(amount).toFixed(2),
+        cu: 'INR',
+        tn: ref
+      });
+      document.getElementById('upiBtn').href = 'upi://pay?' + params.toString();
+    }
+
+    function checkStatusManual() {
+      if (!billRef) return;
+      fetchBillDetails();
+    }
+
+    function markUiPaid() {
+      const badge = document.getElementById('payStatusBadge');
+      badge.innerText = 'PAYMENT CONFIRMED';
+      badge.className = 'cxc-status-badge badge-paid';
+      
+      if (currentBill.pointsBalanceAfter !== undefined) {
+        document.getElementById('regForm').classList.add('hidden');
+        document.getElementById('regSuccess').classList.remove('hidden');
+        document.getElementById('userPoints').innerText = currentBill.pointsBalanceAfter;
+      }
+    }
+
+    function registerCustomer() {
+      const name = document.getElementById('regName').value;
+      const mobile = document.getElementById('regMobile').value;
+      const consent = document.getElementById('mktConsent').checked;
+
+      if (!mobile || mobile.length !== 10) {
+        alert('Please enter a valid 10-digit mobile number');
+        return;
+      }
+
+      fetch(window.CXC_CONFIG.API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({
+          action: 'attachCustomer',
+          ref: billRef,
+          name: name,
+          mobile: mobile,
+          marketingConsent: consent
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'success') {
+          document.getElementById('regForm').classList.add('hidden');
+          document.getElementById('regSuccess').classList.remove('hidden');
+          document.getElementById('userPoints').innerText = data.pointsBalance;
+          alert(data.message);
+        } else {
+          alert('Error: ' + data.message);
+        }
+      });
+    }
+  </script>
+</body>
+</html>

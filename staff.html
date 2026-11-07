@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CLOTH X CLUB - Staff Dashboard</title>
+  <link rel="stylesheet" href="assets/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="assets/config.js"></script>
+</head>
+<body>
+  <div class="cxc-container">
+    <div class="cxc-header">
+      <div class="cxc-brand">CLOTH X CLUB</div>
+      <div class="cxc-tagline">STAFF DASHBOARD</div>
+    </div>
+
+    <!-- Auth Form -->
+    <div id="authSection" class="cxc-card">
+      <label class="cxc-label" for="staffPin">Enter Staff PIN</label>
+      <input type="password" id="staffPin" class="cxc-input" placeholder="••••" maxlength="10">
+      <button class="cxc-btn" onclick="loginStaff()">Authenticate</button>
+      <p id="authError" style="color:red; font-size:12px; margin-top:8px;" class="hidden"></p>
+    </div>
+
+    <!-- Main Workflow (Hidden by default) -->
+    <div id="appSection" class="hidden">
+      <!-- Create Bill Card -->
+      <div id="createBillCard" class="cxc-card">
+        <label class="cxc-label">Bill Amount (₹)</label>
+        <input type="number" id="grossAmount" class="cxc-input" placeholder="0.00" step="0.01">
+
+        <label class="cxc-label">Customer Mobile (Optional)</label>
+        <input type="tel" id="custMobile" class="cxc-input" placeholder="10-digit Mobile" maxlength="10" onblur="checkLoyaltyBalance()">
+        <p id="loyaltyInfo" style="font-size:12px; color:var(--cxc-green); margin-top:-8px; margin-bottom:12px;" class="hidden"></p>
+
+        <label class="cxc-label">Redeem Points (Optional)</label>
+        <input type="number" id="redeemPoints" class="cxc-input" placeholder="0" value="0">
+
+        <button class="cxc-btn" onclick="generateBill()">Generate Customer QR</button>
+      </div>
+
+      <!-- Generated QR Display Card -->
+      <div id="qrCard" class="cxc-card hidden">
+        <div style="text-align: center;">
+          <span id="billStatusBadge" class="cxc-status-badge badge-pending">PENDING PAYMENT</span>
+        </div>
+
+        <div class="cxc-amount-box">
+          <div class="cxc-amount-label">Net Payable</div>
+          <div class="cxc-amount-val" id="dispNet">₹0.00</div>
+          <div class="cxc-ref" id="dispRef">CXC-XXXXXX</div>
+        </div>
+
+        <div class="cxc-qr-box">
+          <div id="qrcode"></div>
+        </div>
+
+        <p style="font-size: 11px; text-align: center; color: var(--cxc-gray-mid); margin-bottom: 12px;">
+          Scan with phone camera to complete payment
+        </p>
+
+        <button class="cxc-btn cxc-btn-success" onclick="confirmPayment()">Confirm Payment Received</button>
+        <button class="cxc-btn cxc-btn-secondary" onclick="resetForm()">New Bill</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let activePin = '';
+    let currentRef = '';
+
+    function loginStaff() {
+      const pin = document.getElementById('staffPin').value;
+      if (!pin) return;
+
+      fetch(window.CXC_CONFIG.API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'staffAuth', pin: pin })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.authenticated) {
+          activePin = pin;
+          document.getElementById('authSection').classList.add('hidden');
+          document.getElementById('appSection').classList.remove('hidden');
+        } else {
+          showAuthError(data.message || 'Invalid PIN');
+        }
+      })
+      .catch(err => showAuthError('Authentication error: ' + err));
+    }
+
+    function showAuthError(msg) {
+      const err = document.getElementById('authError');
+      err.innerText = msg;
+      err.classList.remove('hidden');
+    }
+
+    function checkLoyaltyBalance() {
+      const mob = document.getElementById('custMobile').value;
+      if (mob.length !== 10) return;
+
+      fetch(`${window.CXC_CONFIG.API_URL}?action=customerBalance&mobile=${mob}`)
+      .then(res => res.json())
+      .then(data => {
+        const info = document.getElementById('loyaltyInfo');
+        if (data.status === 'success' && data.exists) {
+          info.innerText = `Customer: ${data.name || 'Member'} | Balance: ${data.pointsBalance} pts`;
+          info.classList.remove('hidden');
+        } else {
+          info.innerText = 'New Customer (0 pts)';
+          info.classList.remove('hidden');
+        }
+      });
+    }
+
+    function generateBill() {
+      const grossAmount = parseFloat(document.getElementById('grossAmount').value);
+      const mobile = document.getElementById('custMobile').value;
+      const redeemPoints = parseInt(document.getElementById('redeemPoints').value, 10) || 0;
+
+      if (isNaN(grossAmount) || grossAmount <= 0) {
+        alert('Please enter a valid bill amount');
+        return;
+      }
+
+      const payload = {
+        action: 'createBill',
+        pin: activePin,
+        grossAmount: grossAmount,
+        mobile: mobile,
+        redeemPoints: redeemPoints
+      };
+
+      fetch(window.CXC_CONFIG.API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'success') {
+          currentRef = data.ref;
+          document.getElementById('dispNet').innerText = `₹${data.netAmount.toFixed(2)}`;
+          document.getElementById('dispRef').innerText = data.ref;
+
+          const payUrl = `${window.location.origin}${window.location.pathname.replace('staff.html', 'pay.html')}?ref=${data.ref}`;
+          
+          document.getElementById('qrcode').innerHTML = '';
+          new QRCode(document.getElementById('qrcode'), {
+            text: payUrl,
+            width: 180,
+            height: 180
+          });
+
+          document.getElementById('createBillCard').classList.add('hidden');
+          document.getElementById('qrCard').classList.remove('hidden');
+        } else {
+          alert('Error creating bill: ' + data.message);
+        }
+      });
+    }
+
+    function confirmPayment() {
+      if (!currentRef) return;
+      if (!confirm('Have you independently verified payment receipt in your bank/UPI app?')) return;
+
+      fetch(window.CXC_CONFIG.API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'markPaid', pin: activePin, ref: currentRef })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.status === 'success') {
+          const badge = document.getElementById('billStatusBadge');
+          badge.innerText = 'PAID';
+          badge.className = 'cxc-status-badge badge-paid';
+          alert(`Payment Confirmed!\nPoints Earned: ${data.pointsEarned}\nCustomer Balance: ${data.pointsBalanceAfter} pts`);
+        } else {
+          alert('Error: ' + data.message);
+        }
+      });
+    }
+
+    function resetForm() {
+      currentRef = '';
+      document.getElementById('grossAmount').value = '';
+      document.getElementById('custMobile').value = '';
+      document.getElementById('redeemPoints').value = '0';
+      document.getElementById('loyaltyInfo').classList.add('hidden');
+      document.getElementById('qrCard').classList.add('hidden');
+      document.getElementById('createBillCard').classList.remove('hidden');
+      document.getElementById('billStatusBadge').innerText = 'PENDING PAYMENT';
+      document.getElementById('billStatusBadge').className = 'cxc-status-badge badge-pending';
+    }
+  </script>
+</body>
+</html>
